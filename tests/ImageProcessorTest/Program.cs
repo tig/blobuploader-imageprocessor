@@ -27,7 +27,7 @@ class Program
         }
         else if (environment == "azure")
         {
-            functionUrl = "https://mye28blobuploader.azurewebsites.net/api/ProcessImage";
+            functionUrl = "https://mye28imageprocessor.azurewebsites.net/api/ProcessImage";
             blobConnectionString = "DefaultEndpointsProtocol=https;AccountName=mye28;AccountKey=<your-azure-storage-account-key>;EndpointSuffix=core.windows.net";
         }
         else
