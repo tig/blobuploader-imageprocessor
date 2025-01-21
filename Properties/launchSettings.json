@@ -4,6 +4,19 @@
       "commandName": "Project",
       "commandLineArgs": "--port 7130",
       "launchBrowser": false
+    },
+    "AzureFunctions": {
+      "commandName": "Executable",
+      "executablePath": "func",
+      "commandLineArgs": "start",
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "ConsoleTest": {
+      "commandName": "Project",
+      "workingDirectory": "$(ProjectDir)/tests/ImageProcessorTest",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
     }
   }
 }

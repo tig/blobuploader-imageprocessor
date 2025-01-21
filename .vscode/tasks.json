@@ -64,6 +64,16 @@
 			"command": "host start",
 			"isBackground": true,
 			"problemMatcher": "$func-dotnet-watch"
-		}
+		},
+		{
+			"label": "build",
+			"command": "dotnet",
+			"type": "process",
+			"args": [
+			  "build",
+			  "${workspaceFolder}/blobuploader-imageprocessor.sln"
+			],
+			"problemMatcher": "$msCompile"
+		  }
 	]
 }
