@@ -124,7 +124,20 @@ http://localhost:7071/api/ProcessImage
 ---
 
 ## **Test with the Console App**
+
 A console test app is included in the repository for convenience.
+
+Set these environment vars first, from here:
+
+* https://portal.azure.com/#@kindel.com/resource/subscriptions/7bee0c7c-3217-4628-a783-dd7d687112d3/resourceGroups/mye28_group/providers/Microsoft.Storage/storageAccounts/mye28/keys
+
+* https://portal.azure.com/#@kindel.com/resource/subscriptions/7bee0c7c-3217-4628-a783-dd7d687112d3/resourceGroups/mye28_group/providers/Microsoft.Web/sites/mye28imageprocessor/functionsAppKeys
+
+```ps1
+setx AZURE_FUNCTION_URL "https://mye28imageprocessor.azurewebsites.net/api/ProcessImage"
+setx AZURE_BLOB_CONNECTION_STRING "<mye28 storage account key1>"
+setx AZURE_FUNCTION_API_KEY "<mye28 default>"
+```
 
 1. Navigate to the test app directory:
    ```bash

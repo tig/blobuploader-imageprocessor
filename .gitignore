@@ -4,6 +4,8 @@
 # Azure Functions localsettings file
 local.settings.json
 
+*.env
+
 # Azurite database files
 __azurite_db_*
 

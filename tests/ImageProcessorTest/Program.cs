@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using DotNetEnv;
 
 class Program
 {
@@ -19,6 +20,7 @@ class Program
         string environment = args[0].ToLower();
         string functionUrl;
         string blobConnectionString;
+        string apiKey = null;
 
         if (environment == "local")
         {
@@ -27,8 +29,17 @@ class Program
         }
         else if (environment == "azure")
         {
-            functionUrl = "https://mye28imageprocessor.azurewebsites.net/api/ProcessImage";
-            blobConnectionString = "DefaultEndpointsProtocol=https;AccountName=mye28;AccountKey=<your-azure-storage-account-key>;EndpointSuffix=core.windows.net";
+            // Load environment variables from .env file in the tests/ImageProcessorTest folder
+            Env.Load("../../tests/ImageProcessorTest/vars.env");
+            functionUrl = Environment.GetEnvironmentVariable("AZURE_FUNCTION_URL");
+            blobConnectionString = Environment.GetEnvironmentVariable("AZURE_BLOB_CONNECTION_STRING");
+            apiKey = Environment.GetEnvironmentVariable("AZURE_FUNCTION_API_KEY");
+
+            if (string.IsNullOrEmpty(functionUrl) || string.IsNullOrEmpty(blobConnectionString) || string.IsNullOrEmpty(apiKey))
+            {
+                Console.WriteLine("Missing required environment variables.");
+                return;
+            }
         }
         else
         {
@@ -42,9 +53,9 @@ class Program
         var request = new
         {
             ImageBase64 = imageBase64,
-            UploadPath = "/uploads/777/",
+            UploadPath = "/uploads/77777/",
             UseHashForFileName = true,
-            DeDupe = true,
+            DeDupe = false,
             FileName = "jpg-test",
             Extension = "jpg",
             OriginalWidth = 3840,
@@ -61,8 +72,15 @@ class Program
 
         using var client = new HttpClient();
 
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            client.DefaultRequestHeaders.Add("x-functions-key", apiKey);
+        }
+
         Console.WriteLine($"Sending request to {functionUrl}...");
         var response = await client.PostAsync(functionUrl, new StringContent(jsonRequest, Encoding.UTF8, "application/json"));
+
+        Console.WriteLine($"Response status code: {response.StatusCode}");
 
         Console.WriteLine(await response.Content.ReadAsStringAsync());
 

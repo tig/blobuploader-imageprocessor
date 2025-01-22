@@ -25,33 +25,45 @@ namespace ImageProcessor
         {
             try
             {
+                // Deserialize the request
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                _logger.LogInformation("Request body read successfully.");
+
                 var input = JsonSerializer.Deserialize<ImageProcessingRequest>(requestBody);
+                _logger.LogInformation("Deserialized request payload: {@input}", input);
 
-                _logger.LogInformation($"ProcessImage: {JsonSerializer.Serialize(input.FileName)}.{JsonSerializer.Serialize(input.Extension)}");
-
-                if (input == null || string.IsNullOrEmpty(input.ImageBase64) || string.IsNullOrEmpty(input.BlobContainer))
+                if (input == null)
                 {
-                    throw new System.ArgumentException("Invalid input parameters.");
+                    _logger.LogError("Input payload is null.");
+                    throw new ArgumentException("Input payload cannot be null.");
                 }
 
-                var imageBytes = System.Convert.FromBase64String(input.ImageBase64);
-
-                // Generate a hash of the image and use it as the filename
-                var hash = System.Security.Cryptography.MD5.Create();
-                var hashBytes = hash.ComputeHash(imageBytes);
-                // Convert to hex string and use just the last 24 characters
-                var hashString = System.BitConverter.ToString(hashBytes).Replace("-", "").ToLower().Substring(8, 24);
-
-                if (input.UseHashForFileName)
+                if (string.IsNullOrEmpty(input.ImageBase64) || string.IsNullOrEmpty(input.BlobContainer))
                 {
-                    input.FileName = hashString;
+                    _logger.LogError("Invalid input parameters: ImageBase64 or BlobContainer is null or empty.");
+                    throw new ArgumentException("Invalid input parameters.");
                 }
 
+                // Validate Base64 string
+                byte[] imageBytes;
+                try
+                {
+                    imageBytes = Convert.FromBase64String(input.ImageBase64);
+                    _logger.LogInformation("ImageBase64 decoded successfully.");
+                }
+                catch (FormatException ex)
+                {
+                    _logger.LogError(ex, "Invalid Base64 string.");
+                    throw new ArgumentException("Invalid Base64 string.", ex);
+                }
+
+                // Create BlobServiceClient
+                _logger.LogInformation("Creating BlobServiceClient.");
                 var blobServiceClient = new BlobServiceClient(input.BlobConnectionString);
                 var containerClient = blobServiceClient.GetBlobContainerClient(input.BlobContainer);
                 await containerClient.CreateIfNotExistsAsync();
-
+                
+                _logger.LogInformation("Blob container ensured.");
                 var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
 
                 var originalBlobName = input.UploadPath + input.FileName + "_original." + input.Extension;
