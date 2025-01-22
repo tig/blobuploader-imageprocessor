@@ -25,6 +25,8 @@ namespace ImageProcessor
         {
             try
             {
+                _logger.LogInformation("ProcessImage: requestBody: {requestBody}", req.Body);
+
                 // Deserialize the request
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 _logger.LogInformation("ProcessImage: Request body read successfully.");
