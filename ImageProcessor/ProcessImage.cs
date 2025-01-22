@@ -32,7 +32,7 @@ namespace ImageProcessor
                 _logger.LogInformation("ProcessImage: Request body read successfully.");
 
                 var input = JsonSerializer.Deserialize<ImageProcessingRequest>(requestBody);
-                _logger.LogInformation("ProcessImage: Deserialized request payload: {@input}", input);
+                _logger.LogInformation("ProcessImage: Deserialized request payload: {@input}", JsonSerializer.Serialize(input));
 
                 if (input is null)
                 {
@@ -127,7 +127,8 @@ namespace ImageProcessor
                 {
                     message = "Error processing image.",
                     exception = ex.Message,
-                    stackTrace = ex.StackTrace
+                    stackTrace = ex.StackTrace,
+                    input = req.Body
                 };
 
                 _logger.LogError(ex, "ProcessImage: Error processing image: {@errorDetails}", errorDetails);
