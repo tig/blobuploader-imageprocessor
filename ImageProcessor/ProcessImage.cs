@@ -27,20 +27,20 @@ namespace ImageProcessor
             {
                 // Deserialize the request
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                _logger.LogInformation("Request body read successfully.");
+                _logger.LogInformation("ProcessImage: Request body read successfully.");
 
                 var input = JsonSerializer.Deserialize<ImageProcessingRequest>(requestBody);
-                _logger.LogInformation("Deserialized request payload: {@input}", input);
+                _logger.LogInformation("ProcessImage: Deserialized request payload: {@input}", input);
 
                 if (input == null)
                 {
-                    _logger.LogError("Input payload is null.");
+                    _logger.LogError("ProcessImage: Input payload is null.");
                     throw new ArgumentException("Input payload cannot be null.");
                 }
 
                 if (string.IsNullOrEmpty(input.ImageBase64) || string.IsNullOrEmpty(input.BlobContainer))
                 {
-                    _logger.LogError("Invalid input parameters: ImageBase64 or BlobContainer is null or empty.");
+                    _logger.LogError("ProcessImage: Invalid input parameters: ImageBase64 or BlobContainer is null or empty.");
                     throw new ArgumentException("Invalid input parameters.");
                 }
 
@@ -49,21 +49,21 @@ namespace ImageProcessor
                 try
                 {
                     imageBytes = Convert.FromBase64String(input.ImageBase64);
-                    _logger.LogInformation("ImageBase64 decoded successfully.");
+                    _logger.LogInformation("ProcessImage: ImageBase64 decoded successfully.");
                 }
                 catch (FormatException ex)
                 {
-                    _logger.LogError(ex, "Invalid Base64 string.");
+                    _logger.LogError(ex, "ProcessImage: Invalid Base64 string.");
                     throw new ArgumentException("Invalid Base64 string.", ex);
                 }
 
                 // Create BlobServiceClient
-                _logger.LogInformation("Creating BlobServiceClient.");
+                _logger.LogInformation("ProcessImage: Creating BlobServiceClient.");
                 var blobServiceClient = new BlobServiceClient(input.BlobConnectionString);
                 var containerClient = blobServiceClient.GetBlobContainerClient(input.BlobContainer);
                 await containerClient.CreateIfNotExistsAsync();
-                
-                _logger.LogInformation("Blob container ensured.");
+
+                _logger.LogInformation("ProcessImage: Blob container ensured.");
                 var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
 
                 var originalBlobName = input.UploadPath + input.FileName + "_original." + input.Extension;
@@ -76,7 +76,7 @@ namespace ImageProcessor
                     var blobClient = containerClient.GetBlobClient(originalBlobName);
                     if (await blobClient.ExistsAsync())
                     {
-                        _logger.LogInformation("File already exists: {originalBlobName}", originalBlobName);
+                        _logger.LogInformation("ProcessImage: File already exists: {originalBlobName}", originalBlobName);
                         response.Headers.Add("Content-Type", "application/json");
                         var responseBody = new { original = blobClient.Uri.ToString(), sized = blobClient.Uri.ToString(), thumbnail = blobClient.Uri.ToString() };
                         await response.WriteStringAsync(JsonSerializer.Serialize(responseBody));
@@ -85,30 +85,38 @@ namespace ImageProcessor
                     }
                 }
 
-                _logger.LogInformation("File doesn't exist: {originalBlobName}", originalBlobName);
+                _logger.LogInformation("ProcessImage: File doesn't exist: {originalBlobName}", originalBlobName);
 
                 using var imageStream = new MemoryStream(imageBytes);
                 using var image = Image.Load(imageStream);
 
                 var imageService = new ImageProcessingService();
 
+                _logger.LogInformation("ProcessImage: Resizing thumbnail.");
                 var thumbnailImage = imageService.ResizeImage(image, input.ThumbnailWidth, input.ThumbnailHeight);
+
+                _logger.LogInformation("ProcessImage: Uploading thumbnail to Blob storage.");
                 var thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailImage, thumbnailBlobName);
 
+                _logger.LogInformation("ProcessImage: Resizing sized.");
                 var sizedImage = imageService.ResizeImage(image, input.SizedWidth, input.SizedHeight);
+                _logger.LogInformation("ProcessImage: Uploading sized to Blob storage.");
                 var sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedImage, sizedBlobName);
 
+                _logger.LogInformation("ProcessImage: Resizing original.");
                 var originalImage = imageService.ResizeImage(image, input.OriginalWidth, input.OriginalHeight);
+                _logger.LogInformation("ProcessImage: Uploading original to Blob storage.");
                 var originalBlob = await imageService.UploadToBlobAsync(containerClient, originalImage, originalBlobName);
 
                 response.Headers.Add("Content-Type", "application/json");
                 await response.WriteStringAsync(JsonSerializer.Serialize(new { original = originalBlob, sized = sizedBlob, thumbnail = thumbnailBlob }));
 
+                _logger.LogInformation("ProcessImage: Image processing completed successfully.", response);
                 return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing image.");
+                _logger.LogError(ex, "ProcessImage: Error processing image.");
                 var errResponse = req.CreateResponse(System.Net.HttpStatusCode.InternalServerError);
                 await errResponse.WriteStringAsync("Error processing image.");
                 return errResponse;
