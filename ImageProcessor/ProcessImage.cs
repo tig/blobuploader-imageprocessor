@@ -38,6 +38,12 @@ namespace ImageProcessor
                 }
 
                 // Check and log required input parameters
+                if (string.IsNullOrEmpty(input.SubDirectory))
+                {
+                    _logger.LogError("ProcessImage: SubDirectory empty.");
+                    throw new ArgumentException("Invalid input parameters: SubDirectory is empty.");
+                }
+
                 if (string.IsNullOrEmpty(input.BlobConnectionString))
                 {
                     _logger.LogError("ProcessImage: BlobConnectionString empty.");
@@ -85,9 +91,9 @@ namespace ImageProcessor
                     input.FileName = BitConverter.ToString(hash).Replace("-", "").ToLower().Substring(0, 24);
                 }
 
-                var originalBlobName = input.UploadPath + input.FileName + "_original." + input.Extension;
-                var sizedBlobName = input.UploadPath + input.FileName + "_sized." + input.Extension;
-                var thumbnailBlobName = input.UploadPath + input.FileName + "_thumbnail." + input.Extension;
+                var originalBlobName = input.SubDirectory + input.FileName + "_original." + input.Extension;
+                var sizedBlobName = input.SubDirectory + input.FileName + "_sized." + input.Extension;
+                var thumbnailBlobName = input.SubDirectory + input.FileName + "_thumbnail." + input.Extension;
 
                 // Check for duplicates in UploadPath
                 if (input.DeDupe)
