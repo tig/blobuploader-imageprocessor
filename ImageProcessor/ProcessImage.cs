@@ -25,19 +25,23 @@ namespace ImageProcessor
         {
             try
             {
-                _logger.LogInformation("ProcessImage: requestBody: {requestBody}", req.Body);
-
                 // Deserialize the request
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 _logger.LogInformation("ProcessImage: Request body read successfully.");
 
                 var input = JsonSerializer.Deserialize<ImageProcessingRequest>(requestBody);
-                _logger.LogInformation("ProcessImage: Deserialized request payload: {@input}", JsonSerializer.Serialize(input));
 
                 if (input is null)
                 {
                     _logger.LogError("ProcessImage: Input payload is null.");
                     throw new ArgumentException("Input payload cannot be null.");
+                }
+
+                // Check and log required input parameters
+                if (string.IsNullOrEmpty(input.BlobConnectionString))
+                {
+                    _logger.LogError("ProcessImage: BlobConnectionString empty.");
+                    throw new ArgumentException("Invalid input parameters: BlobConnectionString is empty.");
                 }
 
                 if (string.IsNullOrEmpty(input.BlobContainer)){
@@ -72,6 +76,14 @@ namespace ImageProcessor
 
                 _logger.LogInformation("ProcessImage: Blob container ensured.");
                 var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+
+                if (input.UseHashForFileName)
+                {
+                    // Use MD5 to hash the imageBytes and convert to a string. Use first 24 characters as the filename.
+                    using var md5 = System.Security.Cryptography.MD5.Create();
+                    var hash = md5.ComputeHash(imageBytes);
+                    input.FileName = BitConverter.ToString(hash).Replace("-", "").ToLower().Substring(0, 24);
+                }
 
                 var originalBlobName = input.UploadPath + input.FileName + "_original." + input.Extension;
                 var sizedBlobName = input.UploadPath + input.FileName + "_sized." + input.Extension;
