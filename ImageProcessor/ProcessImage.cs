@@ -118,9 +118,16 @@ namespace ImageProcessor
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "ProcessImage: Error processing image.");
+                // Log the detailed exception, including the stack trace
+                _logger.LogError("ProcessImage: Error processing image. Exception: {ExceptionMessage}, StackTrace: {StackTrace}", ex.Message, ex.StackTrace);
+
+                // Create a detailed error message
+                var detailedErrorMessage = $"Error processing image: {ex.Message} | StackTrace: {ex.StackTrace}";
+
+                // Include the detailed error message in the HTTP response
                 var errResponse = req.CreateResponse(System.Net.HttpStatusCode.InternalServerError);
-                await errResponse.WriteStringAsync("Error processing image.");
+                await errResponse.WriteStringAsync(detailedErrorMessage);
+
                 return errResponse;
             }
         }
