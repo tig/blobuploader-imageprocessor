@@ -20,20 +20,20 @@ jobs:
       id-token: write #This is required for requesting the JWT
 
     steps:
-      # - name: 'Checkout GitHub Action'
-      #   uses: actions/checkout@v4
+      - name: 'Checkout GitHub Action'
+        uses: actions/checkout@v4
 
-      # - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
-      #   uses: actions/setup-dotnet@v1
-      #   with:
-      #     dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      # - name: 'Resolve Project Dependencies Using Dotnet'
-      #   shell: pwsh
-      #   run: |
-      #     pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
-      #     dotnet build --configuration Release --output ./output
-      #     popd
+      - name: 'Resolve Project Dependencies Using Dotnet'
+        shell: pwsh
+        run: |
+          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+          dotnet build --configuration Release --output ./output
+          popd
       
       - name: Login to Azure
         uses: azure/login@v2
