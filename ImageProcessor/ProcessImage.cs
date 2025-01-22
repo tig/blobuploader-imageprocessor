@@ -34,21 +34,21 @@ namespace ImageProcessor
                 var input = JsonSerializer.Deserialize<ImageProcessingRequest>(requestBody);
                 _logger.LogInformation("ProcessImage: Deserialized request payload: {@input}", input);
 
-                if (input == null)
+                if (input is null)
                 {
                     _logger.LogError("ProcessImage: Input payload is null.");
                     throw new ArgumentException("Input payload cannot be null.");
+                }
+
+                if (string.IsNullOrEmpty(input.BlobContainer)){
+                    _logger.LogError("ProcessImage: BlobContainer empty.");
+                    throw new ArgumentException("Invalid input parameters: BlobContainer is empty.");
                 }
 
                 if (string.IsNullOrEmpty(input.ImageBase64))
                 {
                     _logger.LogError("ProcessImage: ImageBase64 empty.");
                     throw new ArgumentException("Invalid input parameters: ImageBase64 is empty.");
-                }
-
-                if (string.IsNullOrEmpty(input.BlobContainer)){
-                    _logger.LogError("ProcessImage: BlobContainer empty.");
-                    throw new ArgumentException("Invalid input parameters: BlobContainer is empty.");
                 }
 
                 // Validate Base64 string
@@ -123,18 +123,22 @@ namespace ImageProcessor
             }
             catch (Exception ex)
             {
-                // Log the detailed exception, including the stack trace
-                _logger.LogError("ProcessImage: Error processing image. Exception: {ExceptionMessage}, StackTrace: {StackTrace}", ex.Message, ex.StackTrace);
+                var errorDetails = new
+                {
+                    message = "Error processing image.",
+                    exception = ex.Message,
+                    stackTrace = ex.StackTrace
+                };
 
-                // Create a detailed error message
-                var detailedErrorMessage = $"Error processing image: {ex.Message} | StackTrace: {ex.StackTrace}";
+                _logger.LogError(ex, "ProcessImage: Error processing image: {@errorDetails}", errorDetails);
 
-                // Include the detailed error message in the HTTP response
                 var errResponse = req.CreateResponse(System.Net.HttpStatusCode.InternalServerError);
-                await errResponse.WriteStringAsync(detailedErrorMessage);
+                errResponse.Headers.Add("Content-Type", "application/json");
+                await errResponse.WriteStringAsync(JsonSerializer.Serialize(errorDetails));
 
                 return errResponse;
             }
+
         }
     }
 }
