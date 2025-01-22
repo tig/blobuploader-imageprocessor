@@ -40,10 +40,15 @@ namespace ImageProcessor
                     throw new ArgumentException("Input payload cannot be null.");
                 }
 
-                if (string.IsNullOrEmpty(input.ImageBase64) || string.IsNullOrEmpty(input.BlobContainer))
+                if (string.IsNullOrEmpty(input.ImageBase64))
                 {
-                    _logger.LogError("ProcessImage: Invalid input parameters: ImageBase64 or BlobContainer is null or empty.");
-                    throw new ArgumentException("Invalid input parameters.");
+                    _logger.LogError("ProcessImage: ImageBase64 empty.");
+                    throw new ArgumentException("Invalid input parameters: ImageBase64 is empty.");
+                }
+
+                if (string.IsNullOrEmpty(input.BlobContainer)){
+                    _logger.LogError("ProcessImage: BlobContainer empty.");
+                    throw new ArgumentException("Invalid input parameters: BlobContainer is empty.");
                 }
 
                 // Validate Base64 string
