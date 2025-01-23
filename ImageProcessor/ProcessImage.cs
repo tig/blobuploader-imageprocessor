@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using ImageProcessor.Models;
 using ImageProcessor.Services;
 using SixLabors.ImageSharp;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace ImageProcessor
 {
@@ -55,24 +56,59 @@ namespace ImageProcessor
                     throw new ArgumentException("Invalid input parameters: BlobContainer is empty.");
                 }
 
-                if (string.IsNullOrEmpty(input.ImageBase64))
+                // if (string.IsNullOrEmpty(input.ImageBase64))
+                // {
+                //     _logger.LogError("ProcessImage: ImageBase64 empty.");
+                //     throw new ArgumentException("Invalid input parameters: ImageBase64 is empty.");
+                // }
+
+
+                // Parse multipart form data
+                if (!req.Headers.TryGetValues("Content-Type", out var contentTypeValues))
                 {
-                    _logger.LogError("ProcessImage: ImageBase64 empty.");
-                    throw new ArgumentException("Invalid input parameters: ImageBase64 is empty.");
+                    throw new ArgumentException("Content-Type header is missing.");
                 }
 
-                // Validate Base64 string
-                byte[] imageBytes;
-                try
+                var contentType = contentTypeValues.First();
+                if (!contentType.Contains("boundary="))
                 {
-                    imageBytes = Convert.FromBase64String(input.ImageBase64);
-                    _logger.LogInformation("ProcessImage: ImageBase64 decoded successfully.");
+                    throw new ArgumentException("Content-Type header does not contain a boundary.");
                 }
-                catch (FormatException ex)
+
+                var boundary = contentType.Split("boundary=").Last();
+
+                var multipartReader = new MultipartReader(boundary, req.Body);
+                MultipartSection section;
+
+                byte[] fileBytes = null;
+                string fileName = null;
+                string blobContainer = null;
+
+                while ((section = await multipartReader.ReadNextSectionAsync()) != null)
                 {
-                    _logger.LogError(ex, "ProcessImage: Invalid Base64 string.");
-                    throw new ArgumentException("Invalid Base64 string.", ex);
+                    if (section.ContentDisposition.Contains("form-data; name=\"file\""))
+                    {
+                        using var ms = new MemoryStream();
+                        await section.Body.CopyToAsync(ms);
+                        fileBytes = ms.ToArray();
+                    }
+                    else if (section.ContentDisposition.Contains("form-data; name=\"fileName\""))
+                    {
+                        using var reader = new StreamReader(section.Body);
+                        fileName = await reader.ReadToEndAsync();
+                    }
+                    else if (section.ContentDisposition.Contains("form-data; name=\"blobContainer\""))
+                    {
+                        using var reader = new StreamReader(section.Body);
+                        blobContainer = await reader.ReadToEndAsync();
+                    }
                 }
+
+                if (fileBytes == null || string.IsNullOrEmpty(fileName) || string.IsNullOrEmpty(blobContainer))
+                {
+                    throw new System.ArgumentException("Invalid input parameters.");
+                }
+
 
                 // Create BlobServiceClient
                 _logger.LogInformation("ProcessImage: Creating BlobServiceClient.");
