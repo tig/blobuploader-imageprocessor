@@ -305,9 +305,9 @@ namespace ImageProcessor
                     _logger.LogInformation("ProcessImageAsync: {originalBlobName} already exists. Skipping processing.", originalBlobName);
                     var existingResponseBody = new
                     {
-                        original = blob.Uri.ToString(),
-                        sized = "",
-                        thumbnail = "",
+                        original = containerClient.Uri + originalBlobName,
+                        sized = containerClient.Uri + sizedBlobName,
+                        thumbnail = containerClient.Uri + thumbnailBlobName,
                         message = "Image already exists. Skipping processing."
                     };
 
