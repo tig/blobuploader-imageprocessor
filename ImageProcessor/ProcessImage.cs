@@ -247,7 +247,7 @@ public class ProcessImage
             }
 
             // Process the image
-            return await ProcessImageAsync(req, deDupe, useHashForFileName, fileBytes, fileName, extension, subDirectory, blobContainer, blobConnectionString, originalWidth, originalHeight, sizedWidth, sizedHeight, thumbnailWidth, thumbnailHeight);
+            await ProcessImageAsync(req, deDupe, useHashForFileName, fileBytes, fileName, extension, subDirectory, blobContainer, blobConnectionString, originalWidth, originalHeight, sizedWidth, sizedHeight, thumbnailWidth, thumbnailHeight);
             
         }
         catch (Exception ex)
