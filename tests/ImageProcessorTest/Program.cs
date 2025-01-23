@@ -47,7 +47,7 @@ class Program
             return;
         }
 
-        string[] testFiles = { "jpg_test.jpg", "gif_test.gif", "earth.gif" };
+        string[] testFiles = { "realbig.gif" };
 
         using var client = new HttpClient();
         if (!string.IsNullOrEmpty(apiKey))
@@ -77,14 +77,14 @@ class Program
             await SendRequest(client, functionUrl, imagePath, fileName, extension, blobConnectionString);
 
             // Do it again with the same file to test dedupe
-            await SendRequest(client, functionUrl, imagePath, fileName, extension, blobConnectionString);
+           // await SendRequest(client, functionUrl, imagePath, fileName, extension, blobConnectionString);
 
             // Do it again with a different file to test dedupe
-            var differentFilePath = Path.GetFullPath($"../../tests/different_{file}");
-            if (File.Exists(differentFilePath))
-            {
-                await SendRequest(client, functionUrl, differentFilePath, fileName, extension, blobConnectionString);
-            }
+            // var differentFilePath = Path.GetFullPath($"../../tests/different_{file}");
+            // if (File.Exists(differentFilePath))
+            // {
+            //     await SendRequest(client, functionUrl, differentFilePath, fileName, extension, blobConnectionString);
+            // }
         }
 
         Console.WriteLine("Done!");

@@ -20,7 +20,7 @@ namespace ImageProcessor.Services
             _logger = logger;
         }
 
-        public Image ResizeImage(Image image, int width, int height)
+        public Image ResizeImage(in Image image, int width, int height)
         {
             _logger.LogInformation($"PI: Resizing image to {width}x{height}");
 
@@ -41,7 +41,7 @@ namespace ImageProcessor.Services
             return image;
         }
 
-        public Image ResizeAnimatedGif(Image image, int width, int height)
+        public Image ResizeAnimatedGif(in Image image, int width, int height)
         {
             _logger.LogInformation($"PI: Resizing animated GIF to fit within {width}x{height}");
 
@@ -59,7 +59,7 @@ namespace ImageProcessor.Services
                 Mode = ResizeMode.Max
             }));
 
-            _logger.LogInformation("PI: Animated GIF resizing complete.");
+            _logger.LogInformation("PI: Animated GIF resizing complete. New Size: {0}x{1}", image.Width, image.Height);
             return image;
         }
 
@@ -68,7 +68,9 @@ namespace ImageProcessor.Services
             Image image,
             string fileName)
         {
-            _logger.LogInformation($"PI: Uploading image to blob storage: {fileName}");
+            var width = image.Width;
+            var height = image.Height;
+            _logger.LogInformation("PI: Uploading {width}x{height} image to blob storage: {fileName}", width, height, fileName);
             using var ms = new MemoryStream();
 
             // Get the image format

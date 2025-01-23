@@ -331,11 +331,12 @@ public class ProcessImage
         {
             // Handle animated GIF
             var originalGif = imageService.ResizeAnimatedGif(image, originalWidth, originalHeight);
-            var sizedGif = imageService.ResizeAnimatedGif(image, sizedWidth, sizedHeight);
-            var thumbnailGif = imageService.ResizeAnimatedGif(image, thumbnailWidth, thumbnailHeight);
+            originalBlob = await imageService.UploadToBlobAsync(containerClient, originalGif, originalBlobName);
 
-            originalBlob = await imageService.UploadToBlobAsync(containerClient, image, originalBlobName);
+            var sizedGif = imageService.ResizeAnimatedGif(image, sizedWidth, sizedHeight);
             sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedGif, sizedBlobName);
+
+            var thumbnailGif = imageService.ResizeAnimatedGif(image, thumbnailWidth, thumbnailHeight);
             thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailGif, thumbnailBlobName);
         } 
         else
@@ -358,7 +359,7 @@ public class ProcessImage
 
         }
 
-        _logger.LogInformation("PI: ======== Images processed and uploaded successfully.");
+        _logger.LogInformation("PI: Images processed and uploaded successfully.");
 
         var responseBody = new
         {
@@ -375,7 +376,7 @@ public class ProcessImage
 
     private void StartPerfLog(string operationName)
     {
-        _logger.LogInformation($"PI: Starting {operationName}...");
+        _logger.LogInformation($"PI: {operationName} Starting...");
         var stopwatch = new Stopwatch();
         stopwatch.Start();
         _stopwatches.Push(stopwatch);
