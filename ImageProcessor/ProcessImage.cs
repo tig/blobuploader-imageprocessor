@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using System.Diagnostics;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace ImageProcessor;
 
@@ -247,8 +248,7 @@ public class ProcessImage
             }
 
             // Process the image
-            await ProcessImageAsync(req, deDupe, useHashForFileName, fileBytes, fileName, extension, subDirectory, blobContainer, blobConnectionString, originalWidth, originalHeight, sizedWidth, sizedHeight, thumbnailWidth, thumbnailHeight);
-            
+            return await ProcessImageAsync(req, deDupe, useHashForFileName, fileBytes, fileName, extension, subDirectory, blobContainer, blobConnectionString, originalWidth, originalHeight, sizedWidth, sizedHeight, thumbnailWidth, thumbnailHeight);
         }
         catch (Exception ex)
         {
@@ -284,7 +284,6 @@ public class ProcessImage
         var blobServiceClient = new BlobServiceClient(blobConnectionString);
         var containerClient = blobServiceClient.GetBlobContainerClient(blobContainer);
         await containerClient.CreateIfNotExistsAsync();
-
         var imageService = new ImageProcessingService(_logger);
 
         // Generate MD5 hash of fileBytes, convert hash to string, use first 24 characters as file name
@@ -330,12 +329,12 @@ public class ProcessImage
 
         if (image.Frames.Count > 1)
         {
-             // Handle animated GIF
-            var originalGif = imageService.ProcessAnimatedGif(image, originalWidth, originalHeight);
-            var sizedGif = imageService.ProcessAnimatedGif(image, sizedWidth, sizedHeight);
-            var thumbnailGif = imageService.ProcessAnimatedGif(image, thumbnailWidth, thumbnailHeight);
+            // Handle animated GIF
+            var originalGif = imageService.ResizeAnimatedGif(image, originalWidth, originalHeight);
+            var sizedGif = imageService.ResizeAnimatedGif(image, sizedWidth, sizedHeight);
+            var thumbnailGif = imageService.ResizeAnimatedGif(image, thumbnailWidth, thumbnailHeight);
 
-            originalBlob = await imageService.UploadToBlobAsync(containerClient, originalGif, originalBlobName);
+            originalBlob = await imageService.UploadToBlobAsync(containerClient, image, originalBlobName);
             sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedGif, sizedBlobName);
             thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailGif, thumbnailBlobName);
         } 

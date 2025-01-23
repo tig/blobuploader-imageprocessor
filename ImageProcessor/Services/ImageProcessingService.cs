@@ -13,52 +13,69 @@ namespace ImageProcessor.Services
 {
     public class ImageProcessingService
     {
-         private readonly ILogger _logger;
+        private readonly ILogger _logger;
 
         public ImageProcessingService(ILogger logger)
         {
             _logger = logger;
         }
-        
+
         public Image ResizeImage(Image image, int width, int height)
         {
-            _logger.LogInformation($"Resizing image to {width}x{height}");
-            return image.Clone(ctx => ctx.Resize(new ResizeOptions
+            _logger.LogInformation($"PI: Resizing image to {width}x{height}");
+
+            // Check if the specified size is larger than the original dimensions
+            if (width >= image.Width && height >= image.Height)
+            {
+                _logger.LogInformation("PI: Specified size is larger than the original dimensions. Returning the original image.");
+                return image;
+            }
+
+            image.Mutate(x => x.Resize(new ResizeOptions
             {
                 Size = new Size(width, height),
                 Mode = ResizeMode.Max
             }));
+
+            _logger.LogInformation("Image resizing complete.");
+            return image;
         }
 
-        public Image ProcessAnimatedGif(Image image, int width, int height)
+        public Image ResizeAnimatedGif(Image image, int width, int height)
         {
-            var gifEncoder = new GifEncoder();
-            var resizedGif = new Image<Rgba32>(width, height);
+            _logger.LogInformation($"Resizing animated GIF to fit within {width}x{height}");
 
-            foreach (var frame in image.Frames)
+            // Check if the specified size is larger than the original dimensions
+            if (width >= image.Width && height >= image.Height)
             {
-                var resizedFrame = ResizeImage(frame.Clone(), width, height);
-                resizedGif.Frames.AddFrame(resizedFrame.Frames.RootFrame);
+                _logger.LogInformation("PI: Specified size is larger than the original dimensions. Returning the original image.");
+                return image;
             }
 
-            using var ms = new MemoryStream();
-            resizedGif.Save(ms, gifEncoder);
-            ms.Position = 0;
+            // Resize the entire GIF
+            image.Mutate(x => x.Resize(new ResizeOptions
+            {
+                Size = new Size(width, height),
+                Mode = ResizeMode.Max
+            }));
 
-            return Image.Load(ms);
+            _logger.LogInformation("Animated GIF resizing complete.");
+            return image;
         }
 
-
         public async Task<string> UploadToBlobAsync(
-            BlobContainerClient containerClient, 
-            Image image, 
+            BlobContainerClient containerClient,
+            Image image,
             string fileName)
         {
-            _logger.LogInformation($"Uploading image to blob storage: {fileName}");
+            _logger.LogInformation($"PI: Uploading image to blob storage: {fileName}");
             using var ms = new MemoryStream();
 
-            // TODO: Move quality to be configurable param
-            image.Save(ms, new JpegEncoder { Quality = 85 });
+            // Get the image format
+            var format = image.Metadata.DecodedImageFormat;
+
+            // Save the image using the appropriate encoder
+            image.Save(ms, format);
             ms.Position = 0;
 
             var blobClient = containerClient.GetBlobClient(fileName);
@@ -78,7 +95,7 @@ namespace ImageProcessor.Services
             return blobClient.Uri.ToString();
         }
 
-        
+
         private string GetContentType(string path)
         {
             var extension = Path.GetExtension(path).TrimStart('.');
