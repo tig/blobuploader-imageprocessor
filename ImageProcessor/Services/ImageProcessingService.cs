@@ -6,6 +6,8 @@ using Azure.Storage.Blobs.Models;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using SixLabors.ImageSharp.Formats.Gif;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace ImageProcessor.Services
 {
@@ -27,6 +29,25 @@ namespace ImageProcessor.Services
                 Mode = ResizeMode.Max
             }));
         }
+
+        public Image ProcessAnimatedGif(Image image, int width, int height)
+        {
+            var gifEncoder = new GifEncoder();
+            var resizedGif = new Image<Rgba32>(width, height);
+
+            foreach (var frame in image.Frames)
+            {
+                var resizedFrame = ResizeImage(frame.Clone(), width, height);
+                resizedGif.Frames.AddFrame(resizedFrame.Frames.RootFrame);
+            }
+
+            using var ms = new MemoryStream();
+            resizedGif.Save(ms, gifEncoder);
+            ms.Position = 0;
+
+            return Image.Load(ms);
+        }
+
 
         public async Task<string> UploadToBlobAsync(
             BlobContainerClient containerClient, 
@@ -57,6 +78,7 @@ namespace ImageProcessor.Services
             return blobClient.Uri.ToString();
         }
 
+        
         private string GetContentType(string path)
         {
             var extension = Path.GetExtension(path).TrimStart('.');

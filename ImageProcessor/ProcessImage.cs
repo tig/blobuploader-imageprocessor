@@ -324,26 +324,40 @@ public class ProcessImage
             }
         }
 
+        var originalBlob = string.Empty;
+        var sizedBlob = string.Empty;
+        var thumbnailBlob = string.Empty;
 
-        // Process images
-        StartPerfLog("originalImage = imageService.ResizeImage");
-        var originalImage = imageService.ResizeImage(image, originalWidth, originalHeight);
-        StopPerfLog("originalImage = imageService.ResizeImage");
+        if (image.Frames.Count > 1)
+        {
+             // Handle animated GIF
+            var originalGif = imageService.ProcessAnimatedGif(image, originalWidth, originalHeight);
+            var sizedGif = imageService.ProcessAnimatedGif(image, sizedWidth, sizedHeight);
+            var thumbnailGif = imageService.ProcessAnimatedGif(image, thumbnailWidth, thumbnailHeight);
 
-        StartPerfLog("originalBlob = imageService.UploadToBlobAsync");
-        var originalBlob = await imageService.UploadToBlobAsync(containerClient, originalImage, originalBlobName);
-        StopPerfLog("originalBlob = imageService.UploadToBlobAsync");
+            originalBlob = await imageService.UploadToBlobAsync(containerClient, originalGif, originalBlobName);
+            sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedGif, sizedBlobName);
+            thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailGif, thumbnailBlobName);
+        } 
+        else
+        {
+            // Process images
+            StartPerfLog("originalImage = imageService.ResizeImage");
+            var originalImage = imageService.ResizeImage(image, originalWidth, originalHeight);
+            StopPerfLog("originalImage = imageService.ResizeImage");
 
-        StartPerfLog("sizedImage = imageService.ResizeImage");
-        var sizedImage = imageService.ResizeImage(image, sizedWidth, sizedHeight);
-        StopPerfLog("sizedImage = imageService.ResizeImage");
+            originalBlob = await imageService.UploadToBlobAsync(containerClient, originalImage, originalBlobName);
 
-        StartPerfLog("sizedBlob = imageService.UploadToBlobAsync");
-        var sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedImage, sizedBlobName);
-        StopPerfLog("sizedBlob = imageService.UploadToBlobAsync");
+            StartPerfLog("sizedImage = imageService.ResizeImage");
+            var sizedImage = imageService.ResizeImage(image, sizedWidth, sizedHeight);
+            StopPerfLog("sizedImage = imageService.ResizeImage");
 
-        var thumbnailImage = imageService.ResizeImage(image, thumbnailWidth, thumbnailHeight);
-        var thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailImage, thumbnailBlobName);
+            sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedImage, sizedBlobName);
+
+            var thumbnailImage = imageService.ResizeImage(image, thumbnailWidth, thumbnailHeight);
+            thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailImage, thumbnailBlobName);
+
+        }
 
         _logger.LogInformation("ProcessImageAsync: Images processed and uploaded successfully.");
 
