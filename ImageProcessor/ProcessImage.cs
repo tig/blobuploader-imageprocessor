@@ -29,7 +29,7 @@ public class ProcessImage
     [Function("ProcessImage")]
     public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequestData req, FunctionContext context)
     {
-        StartPerfLog("Overall processing");
+        StartPerfLog("======== ProcessImage");
 
         try
         {
@@ -269,7 +269,7 @@ public class ProcessImage
         }
         finally
         {
-            _logger.LogInformation($"PI: Total processing time: {StopPerfLog("Overall processing")} ms.");
+            StopPerfLog("======== ProcessImage");
         }
     }
 
@@ -358,7 +358,7 @@ public class ProcessImage
 
         }
 
-        _logger.LogInformation("ProcessImageAsync: Images processed and uploaded successfully.");
+        _logger.LogInformation("PI: ======== Images processed and uploaded successfully.");
 
         var responseBody = new
         {
@@ -375,7 +375,7 @@ public class ProcessImage
 
     private void StartPerfLog(string operationName)
     {
-        _logger.LogInformation($"Starting {operationName}...");
+        _logger.LogInformation($"PI: Starting {operationName}...");
         var stopwatch = new Stopwatch();
         stopwatch.Start();
         _stopwatches.Push(stopwatch);

@@ -37,13 +37,13 @@ namespace ImageProcessor.Services
                 Mode = ResizeMode.Max
             }));
 
-            _logger.LogInformation("Image resizing complete.");
+            _logger.LogInformation("PI: Image resizing complete.");
             return image;
         }
 
         public Image ResizeAnimatedGif(Image image, int width, int height)
         {
-            _logger.LogInformation($"Resizing animated GIF to fit within {width}x{height}");
+            _logger.LogInformation($"PI: Resizing animated GIF to fit within {width}x{height}");
 
             // Check if the specified size is larger than the original dimensions
             if (width >= image.Width && height >= image.Height)
@@ -59,7 +59,7 @@ namespace ImageProcessor.Services
                 Mode = ResizeMode.Max
             }));
 
-            _logger.LogInformation("Animated GIF resizing complete.");
+            _logger.LogInformation("PI: Animated GIF resizing complete.");
             return image;
         }
 
