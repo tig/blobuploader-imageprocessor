@@ -5,13 +5,22 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using System.IO;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace ImageProcessor.Services
 {
     public class ImageProcessingService
     {
+         private readonly ILogger _logger;
+
+        public ImageProcessingService(ILogger logger)
+        {
+            _logger = logger;
+        }
+        
         public Image ResizeImage(Image image, int width, int height)
         {
+            _logger.LogInformation($"Resizing image to {width}x{height}");
             return image.Clone(ctx => ctx.Resize(new ResizeOptions
             {
                 Size = new Size(width, height),
@@ -24,7 +33,10 @@ namespace ImageProcessor.Services
             Image image, 
             string fileName)
         {
+            _logger.LogInformation($"Uploading image to blob storage: {fileName}");
             using var ms = new MemoryStream();
+
+            // TODO: Move quality to be configurable param
             image.Save(ms, new JpegEncoder { Quality = 85 });
             ms.Position = 0;
 

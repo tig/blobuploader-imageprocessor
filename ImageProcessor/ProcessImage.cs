@@ -9,6 +9,8 @@ using ImageProcessor.Models;
 using ImageProcessor.Services;
 using SixLabors.ImageSharp;
 using Microsoft.AspNetCore.WebUtilities;
+using System.Reflection.PortableExecutable;
+using System.Security.Cryptography;
 
 namespace ImageProcessor
 {
@@ -26,154 +28,228 @@ namespace ImageProcessor
         {
             try
             {
-                // Deserialize the request
-                var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                _logger.LogInformation("ProcessImage: Request body read successfully.");
-
-                var input = JsonSerializer.Deserialize<ImageProcessingRequest>(requestBody);
-
-                if (input is null)
-                {
-                    _logger.LogError("ProcessImage: Input payload is null.");
-                    throw new ArgumentException("Input payload cannot be null.");
-                }
-
-                // Check and log required input parameters
-                if (string.IsNullOrEmpty(input.SubDirectory))
-                {
-                    _logger.LogError("ProcessImage: SubDirectory empty.");
-                    throw new ArgumentException("Invalid input parameters: SubDirectory is empty.");
-                }
-
-                if (string.IsNullOrEmpty(input.BlobConnectionString))
-                {
-                    _logger.LogError("ProcessImage: BlobConnectionString empty.");
-                    throw new ArgumentException("Invalid input parameters: BlobConnectionString is empty.");
-                }
-
-                if (string.IsNullOrEmpty(input.BlobContainer)){
-                    _logger.LogError("ProcessImage: BlobContainer empty.");
-                    throw new ArgumentException("Invalid input parameters: BlobContainer is empty.");
-                }
-
-                // if (string.IsNullOrEmpty(input.ImageBase64))
-                // {
-                //     _logger.LogError("ProcessImage: ImageBase64 empty.");
-                //     throw new ArgumentException("Invalid input parameters: ImageBase64 is empty.");
-                // }
-
-
-                // Parse multipart form data
+                // Determine Content-Type to handle both JSON and multipart/form-data
                 if (!req.Headers.TryGetValues("Content-Type", out var contentTypeValues))
                 {
                     throw new ArgumentException("Content-Type header is missing.");
                 }
 
                 var contentType = contentTypeValues.First();
+
+                // Handle multipart/form-data
+                if (!contentType.Contains("multipart/form-data"))
+                {
+                    throw new ArgumentException("Content-Type header is not multipart/form-data.");
+                }
+
+                // Extract boundary from Content-Type
                 if (!contentType.Contains("boundary="))
                 {
                     throw new ArgumentException("Content-Type header does not contain a boundary.");
                 }
 
                 var boundary = contentType.Split("boundary=").Last();
-
                 var multipartReader = new MultipartReader(boundary, req.Body);
                 MultipartSection section;
 
-                byte[] fileBytes = null;
-                string fileName = null;
-                string blobContainer = null;
+                byte[]? fileBytes = null;
+                string? fileName = null;
+                string? extension = null;
+                string? blobContainer = null;
+                string? blobConnectionString = null;
+                string? subDirectory = null;
+                bool useHashForFileName = false;
+                bool deDupe = false;
+                int originalWidth = 0, originalHeight = 0, sizedWidth = 0, sizedHeight = 0, thumbnailWidth = 0, thumbnailHeight = 0;
 
                 while ((section = await multipartReader.ReadNextSectionAsync()) != null)
                 {
-                    if (section.ContentDisposition.Contains("form-data; name=\"file\""))
+                    //_logger.LogInformation($"Processing section with Content-Disposition: {section.ContentDisposition}");
+
+                    if (section.ContentDisposition == null)
                     {
-                        using var ms = new MemoryStream();
-                        await section.Body.CopyToAsync(ms);
-                        fileBytes = ms.ToArray();
+                        _logger.LogWarning("Section Content-Disposition is null. Skipping section.");
+                        continue;
                     }
-                    else if (section.ContentDisposition.Contains("form-data; name=\"fileName\""))
+
+                    var contentDispositionHeader = System.Net.Http.Headers.ContentDispositionHeaderValue.Parse(section.ContentDisposition);
+
+                    if (contentDispositionHeader.DispositionType != "form-data")
                     {
-                        using var reader = new StreamReader(section.Body);
-                        fileName = await reader.ReadToEndAsync();
+                        _logger.LogWarning("Unexpected Content-Disposition type. Skipping section.");
+                        continue;
                     }
-                    else if (section.ContentDisposition.Contains("form-data; name=\"blobContainer\""))
+
+                    if (string.IsNullOrEmpty(contentDispositionHeader.Name))
                     {
-                        using var reader = new StreamReader(section.Body);
-                        blobContainer = await reader.ReadToEndAsync();
+                        _logger.LogWarning("Section Content-Disposition name is empty. Skipping section.");
+                        continue;
+                    }
+
+                    // Normalize the name for case-insensitive comparison
+                    var fieldName = contentDispositionHeader.Name.Trim('"').ToLower();
+
+                    switch (fieldName)
+                    {
+                        case "file":
+                            _logger.LogInformation("Reading file bytes...");
+                            using (var ms = new MemoryStream())
+                            {
+                                await section.Body.CopyToAsync(ms);
+                                fileBytes = ms.ToArray();
+                                _logger.LogInformation($"File bytes length: {fileBytes.Length}");
+                            }
+                            break;
+
+                        case "filename":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                fileName = await reader.ReadToEndAsync();
+                                _logger.LogInformation($"File name: {fileName}");
+                            }
+                            break;
+
+                        case "extension":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                extension = await reader.ReadToEndAsync();
+                                //_logger.LogInformation($"Extension: {extension}");
+                            }
+                            break;
+
+                        case "subdirectory":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                subDirectory = await reader.ReadToEndAsync();
+                                //_logger.LogInformation($"Subdirectory: {subDirectory}");
+                            }
+                            break;
+
+                        case "usehashforfilename":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                useHashForFileName = bool.Parse(await reader.ReadToEndAsync());
+                                //_logger.LogInformation($"Use hash for file name: {useHashForFileName}");
+                            }
+                            break;
+
+                        case "dedupe":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                deDupe = bool.Parse(await reader.ReadToEndAsync());
+                                // _logger.LogInformation($"De-dupe: {deDupe}");
+                            }
+                            break;
+
+                        case "blobcontainer":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                blobContainer = await reader.ReadToEndAsync();
+                                // _logger.LogInformation($"Blob container: {blobContainer}");
+                            }
+                            break;
+
+                        case "blobconnectionstring":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                blobConnectionString = await reader.ReadToEndAsync();
+                                // _logger.LogInformation($"Blob connection string: {blobConnectionString}");
+                            }
+                            break;
+
+                        case "originalwidth":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                originalWidth = int.Parse(await reader.ReadToEndAsync());
+                                //_logger.LogInformation($"Original width: {originalWidth}");
+                            }
+                            break;
+
+                        case "originalheight":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                originalHeight = int.Parse(await reader.ReadToEndAsync());
+                                // _logger.LogInformation($"Original height: {originalHeight}");
+                            }
+                            break;
+
+                        case "sizedwidth":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                sizedWidth = int.Parse(await reader.ReadToEndAsync());
+                                //_logger.LogInformation($"Sized width: {sizedWidth}");
+                            }
+                            break;
+
+                        case "sizedheight":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                sizedHeight = int.Parse(await reader.ReadToEndAsync());
+                                //_logger.LogInformation($"Sized height: {sizedHeight}");
+                            }
+                            break;
+
+                        case "thumbnailwidth":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                thumbnailWidth = int.Parse(await reader.ReadToEndAsync());
+                                // _logger.LogInformation($"Thumbnail width: {thumbnailWidth}");
+                            }
+                            break;
+
+                        case "thumbnailheight":
+                            using (var reader = new StreamReader(section.Body))
+                            {
+                                thumbnailHeight = int.Parse(await reader.ReadToEndAsync());
+                                // _logger.LogInformation($"Thumbnail height: {thumbnailHeight}");
+                            }
+                            break;
+
+                        default:
+                            _logger.LogWarning($"Unknown form-data field: {contentDispositionHeader.Name}");
+                            break;
                     }
                 }
 
-                if (fileBytes == null || string.IsNullOrEmpty(fileName) || string.IsNullOrEmpty(blobContainer))
+                // Validate required fields
+                if (fileBytes == null)
                 {
-                    throw new System.ArgumentException("Invalid input parameters.");
+                    _logger.LogError("ProcessImage: Missing file bytes in form-data.");
+                    throw new ArgumentException("Invalid input parameters: 'file' field is required and missing.");
                 }
 
-
-                // Create BlobServiceClient
-                _logger.LogInformation("ProcessImage: Creating BlobServiceClient.");
-                var blobServiceClient = new BlobServiceClient(input.BlobConnectionString);
-                var containerClient = blobServiceClient.GetBlobContainerClient(input.BlobContainer);
-                await containerClient.CreateIfNotExistsAsync();
-
-                _logger.LogInformation("ProcessImage: Blob container ensured.");
-                var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
-
-                if (input.UseHashForFileName)
+                if (string.IsNullOrEmpty(fileName))
                 {
-                    // Use MD5 to hash the imageBytes and convert to a string. Use first 24 characters as the filename.
-                    using var md5 = System.Security.Cryptography.MD5.Create();
-                    var hash = md5.ComputeHash(imageBytes);
-                    input.FileName = BitConverter.ToString(hash).Replace("-", "").ToLower().Substring(0, 24);
+                    _logger.LogError("ProcessImage: Missing fileName in form-data.");
+                    throw new ArgumentException("Invalid input parameters: 'fileName' field is required and missing.");
                 }
 
-                var originalBlobName = input.SubDirectory + input.FileName + "_original." + input.Extension;
-                var sizedBlobName = input.SubDirectory + input.FileName + "_sized." + input.Extension;
-                var thumbnailBlobName = input.SubDirectory + input.FileName + "_thumbnail." + input.Extension;
-
-                // Check for duplicates in UploadPath
-                if (input.DeDupe)
+                if (string.IsNullOrEmpty(extension))
                 {
-                    var blobClient = containerClient.GetBlobClient(originalBlobName);
-                    if (await blobClient.ExistsAsync())
-                    {
-                        _logger.LogInformation("ProcessImage: File already exists: {originalBlobName}", originalBlobName);
-                        response.Headers.Add("Content-Type", "application/json");
-                        var responseBody = new { original = blobClient.Uri.ToString(), sized = blobClient.Uri.ToString(), thumbnail = blobClient.Uri.ToString() };
-                        await response.WriteStringAsync(JsonSerializer.Serialize(responseBody));
-
-                        return response;
-                    }
+                    _logger.LogError("ProcessImage: Missing extension in form-data.");
+                    throw new ArgumentException("Invalid input parameters: 'extension' field is required and missing.");
                 }
 
-                _logger.LogInformation("ProcessImage: File doesn't exist: {originalBlobName}", originalBlobName);
+                if (string.IsNullOrEmpty(subDirectory))
+                {
+                    _logger.LogError("ProcessImage: Missing subDirectory in form-data.");
+                    throw new ArgumentException("Invalid input parameters: 'subDirectory' field is required and missing.");
+                }
 
-                using var imageStream = new MemoryStream(imageBytes);
-                using var image = Image.Load(imageStream);
+                if (string.IsNullOrEmpty(blobContainer))
+                {
+                    _logger.LogError("ProcessImage: Missing blobContainer in form-data.");
+                    throw new ArgumentException("Invalid input parameters: 'blobContainer' field is required and missing.");
+                }
 
-                var imageService = new ImageProcessingService();
+                if (string.IsNullOrEmpty(blobConnectionString))
+                {
+                    _logger.LogError("ProcessImage: Missing blobConnectionString in form-data.");
+                    throw new ArgumentException("Invalid input parameters: 'blobConnectionString' field is required and missing.");
+                }
 
-                _logger.LogInformation("ProcessImage: Resizing thumbnail.");
-                var thumbnailImage = imageService.ResizeImage(image, input.ThumbnailWidth, input.ThumbnailHeight);
-
-                _logger.LogInformation("ProcessImage: Uploading thumbnail to Blob storage.");
-                var thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailImage, thumbnailBlobName);
-
-                _logger.LogInformation("ProcessImage: Resizing sized.");
-                var sizedImage = imageService.ResizeImage(image, input.SizedWidth, input.SizedHeight);
-                _logger.LogInformation("ProcessImage: Uploading sized to Blob storage.");
-                var sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedImage, sizedBlobName);
-
-                _logger.LogInformation("ProcessImage: Resizing original.");
-                var originalImage = imageService.ResizeImage(image, input.OriginalWidth, input.OriginalHeight);
-                _logger.LogInformation("ProcessImage: Uploading original to Blob storage.");
-                var originalBlob = await imageService.UploadToBlobAsync(containerClient, originalImage, originalBlobName);
-
-                response.Headers.Add("Content-Type", "application/json");
-                await response.WriteStringAsync(JsonSerializer.Serialize(new { original = originalBlob, sized = sizedBlob, thumbnail = thumbnailBlob }));
-
-                _logger.LogInformation("ProcessImage: Image processing completed successfully.", response);
-                return response;
+                // Process the image
+                return await ProcessImageAsync(req, deDupe, useHashForFileName, fileBytes, fileName, extension, subDirectory, blobContainer, blobConnectionString, originalWidth, originalHeight, sizedWidth, sizedHeight, thumbnailWidth, thumbnailHeight);
             }
             catch (Exception ex)
             {
@@ -181,8 +257,7 @@ namespace ImageProcessor
                 {
                     message = "Error processing image.",
                     exception = ex.Message,
-                    stackTrace = ex.StackTrace,
-                    input = req.Body
+                    stackTrace = ex.StackTrace
                 };
 
                 _logger.LogError(ex, "ProcessImage: Error processing image: {@errorDetails}", errorDetails);
@@ -193,7 +268,78 @@ namespace ImageProcessor
 
                 return errResponse;
             }
+        }
 
+        private async Task<HttpResponseData> ProcessImageAsync(HttpRequestData req, bool deDupe, bool useHashForFileName, byte[] fileBytes, string fileName, string extension, string subDirectory, string blobContainer, string blobConnectionString, int originalWidth, int originalHeight, int sizedWidth, int sizedHeight, int thumbnailWidth, int thumbnailHeight)
+        {
+            var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+
+            using var imageStream = new MemoryStream(fileBytes);
+            using var image = Image.Load(imageStream);
+
+            var blobServiceClient = new BlobServiceClient(blobConnectionString);
+            var containerClient = blobServiceClient.GetBlobContainerClient(blobContainer);
+            await containerClient.CreateIfNotExistsAsync();
+
+            var imageService = new ImageProcessingService(_logger);
+
+            // Generate MD5 hash of fileBytes, convert hash to string, use first 24 characters as file name
+            if (useHashForFileName)
+            {
+                var hash = MD5.Create().ComputeHash(fileBytes);
+                fileName = BitConverter.ToString(hash).Replace("-", "").ToLower().Substring(0, 24);
+            }
+
+            // Generate filenames
+            var originalBlobName = $"{subDirectory}{fileName}_original.{extension}";
+            var sizedBlobName = $"{subDirectory}{fileName}_sized.{extension}";
+            var thumbnailBlobName = $"{subDirectory}{fileName}_thumbnail.{extension}";
+
+            // De-dupe images by checking _original blob name
+            if (deDupe)
+            {
+                _logger.LogInformation("ProcessImageAsync: Checking for dedupe: {originalBlobName}", originalBlobName);
+                var blob = containerClient.GetBlobClient(originalBlobName);
+                if (await blob.ExistsAsync())
+                {
+                    _logger.LogInformation("ProcessImageAsync: {originalBlobName} already exists. Skipping processing.", originalBlobName);
+                    var existingResponseBody = new
+                    {
+                        original = blob.Uri.ToString(),
+                        sized = "",
+                        thumbnail = "",
+                        message = "Image already exists. Skipping processing."
+                    };
+
+                    response.Headers.Add("Content-Type", "application/json");
+                    await response.WriteStringAsync(JsonSerializer.Serialize(existingResponseBody));
+                    return response;
+                }
+            }
+
+
+            // Process images
+            var originalImage = imageService.ResizeImage(image, originalWidth, originalHeight);
+            var originalBlob = await imageService.UploadToBlobAsync(containerClient, originalImage, originalBlobName);
+
+            var sizedImage = imageService.ResizeImage(image, sizedWidth, sizedHeight);
+            var sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedImage, sizedBlobName);
+
+            var thumbnailImage = imageService.ResizeImage(image, thumbnailWidth, thumbnailHeight);
+            var thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailImage, thumbnailBlobName);
+
+            _logger.LogInformation("ProcessImageAsync: Images processed and uploaded successfully.");
+
+            var responseBody = new
+            {
+                original = originalBlob,
+                sized = sizedBlob,
+                thumbnail = thumbnailBlob
+            };
+
+            response.Headers.Add("Content-Type", "application/json");
+            await response.WriteStringAsync(JsonSerializer.Serialize(responseBody));
+            return response;
         }
     }
 }

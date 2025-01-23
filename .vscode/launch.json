@@ -7,7 +7,7 @@
         "request": "launch",
         "preLaunchTask": "build",
         "program": "${workspaceFolder}/tests/ImageProcessorTest/bin/Debug/net8.0/ImageProcessorTest.dll",
-        "args": ["azure"],
+        "args": ["local"],
         "cwd": "${workspaceFolder}/tests/ImageProcessorTest",
         "stopAtEntry": false,
         "console": "internalConsole",
