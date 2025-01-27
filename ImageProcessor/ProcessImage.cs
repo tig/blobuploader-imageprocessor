@@ -309,9 +309,9 @@ public class ProcessImage
 
                 var existingResponseBody = new
                 {
-                    original = containerClient.Uri + originalBlobName,
-                    sized = containerClient.Uri + sizedBlobName,
-                    thumbnail = containerClient.Uri + thumbnailBlobName,
+                    original = containerClient.Uri + "./" + originalBlobName,
+                    sized = containerClient.Uri + "./" + sizedBlobName,
+                    thumbnail = containerClient.Uri + "./" + thumbnailBlobName,
                     message = "Image already exists. Skipping processing.",
                     processingTime = StopPerfLog("ProcessImageAsync"),
                 };
