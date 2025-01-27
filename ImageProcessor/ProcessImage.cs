@@ -406,6 +406,7 @@ public class ProcessImage
             original = originalBlob,
             sized = sizedBlob,
             thumbnail = thumbnailBlob,
+            message = "Image processed OK.",
             processingTime = StopPerfLog("ProcessImageAsync"),
         };
 
