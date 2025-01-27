@@ -329,33 +329,73 @@ public class ProcessImage
 
         if (image.Frames.Count > 1)
         {
-            // Handle animated GIF
-            var sizedGif = imageService.ResizeAnimatedGif(image, sizedWidth, sizedHeight);
-            sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedGif, sizedBlobName);
+            try
+            {
+                // Handle animated GIF
+                var sizedGif = imageService.ResizeAnimatedGif(image, sizedWidth, sizedHeight);
+                sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedGif, sizedBlobName);
 
-            var thumbnailGif = imageService.ResizeAnimatedGif(image, thumbnailWidth, thumbnailHeight);
-            thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailGif, thumbnailBlobName);
+                var thumbnailGif = imageService.ResizeAnimatedGif(image, thumbnailWidth, thumbnailHeight);
+                thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailGif, thumbnailBlobName);
 
-            var originalGif = imageService.ResizeAnimatedGif(image, originalWidth, originalHeight);
-            originalBlob = await imageService.UploadToBlobAsync(containerClient, originalGif, originalBlobName);
-        } 
+                var originalGif = imageService.ResizeAnimatedGif(image, originalWidth, originalHeight);
+                originalBlob = await imageService.UploadToBlobAsync(containerClient, originalGif, originalBlobName);
+            }
+            catch (Exception ex)
+            {
+                var errorDetails = new
+                {
+                    message = "Error processing animated GIF.",
+                    exception = ex.Message,
+                    stackTrace = ex.StackTrace
+                };
+
+                _logger.LogError(ex, "PI: Error processing animated GIF: {@errorDetails}", errorDetails);
+
+                var errResponse = req.CreateResponse(System.Net.HttpStatusCode.InternalServerError);
+                errResponse.Headers.Add("Content-Type", "application/json");
+                await errResponse.WriteStringAsync(JsonSerializer.Serialize(errorDetails));
+
+                return errResponse;
+            }
+        }
         else
         {
-            // Process images
-            StartPerfLog("originalImage = imageService.ResizeImage");
-            var originalImage = imageService.ResizeImage(image, originalWidth, originalHeight);
-            StopPerfLog("originalImage = imageService.ResizeImage");
+            try
+            {
+                // Process images
+                StartPerfLog("originalImage = imageService.ResizeImage");
+                var originalImage = imageService.ResizeImage(image, originalWidth, originalHeight);
+                StopPerfLog("originalImage = imageService.ResizeImage");
 
-            originalBlob = await imageService.UploadToBlobAsync(containerClient, originalImage, originalBlobName);
+                originalBlob = await imageService.UploadToBlobAsync(containerClient, originalImage, originalBlobName);
 
-            StartPerfLog("sizedImage = imageService.ResizeImage");
-            var sizedImage = imageService.ResizeImage(image, sizedWidth, sizedHeight);
-            StopPerfLog("sizedImage = imageService.ResizeImage");
+                StartPerfLog("sizedImage = imageService.ResizeImage");
+                var sizedImage = imageService.ResizeImage(image, sizedWidth, sizedHeight);
+                StopPerfLog("sizedImage = imageService.ResizeImage");
 
-            sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedImage, sizedBlobName);
+                sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedImage, sizedBlobName);
 
-            var thumbnailImage = imageService.ResizeImage(image, thumbnailWidth, thumbnailHeight);
-            thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailImage, thumbnailBlobName);
+                var thumbnailImage = imageService.ResizeImage(image, thumbnailWidth, thumbnailHeight);
+                thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailImage, thumbnailBlobName);
+            }
+            catch (Exception ex)
+            {
+                var errorDetails = new
+                {
+                    message = "Error processing image.",
+                    exception = ex.Message,
+                    stackTrace = ex.StackTrace
+                };
+
+                _logger.LogError(ex, "PI: Error processing image: {@errorDetails}", errorDetails);
+
+                var errResponse = req.CreateResponse(System.Net.HttpStatusCode.InternalServerError);
+                errResponse.Headers.Add("Content-Type", "application/json");
+                await errResponse.WriteStringAsync(JsonSerializer.Serialize(errorDetails));
+
+                return errResponse;
+            }
 
         }
 

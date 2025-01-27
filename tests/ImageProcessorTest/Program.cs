@@ -47,7 +47,7 @@ class Program
             return;
         }
 
-        string[] testFiles = { "realbig.gif" };
+        string[] testFiles = { "tempest.gif" };
 
         using var client = new HttpClient();
         if (!string.IsNullOrEmpty(apiKey))
@@ -93,6 +93,7 @@ class Program
     private static async Task DeleteAllBlobsAsync(string blobConnectionString, string containerName)
     {
         var blobServiceClient = new BlobServiceClient(blobConnectionString);
+        Console.WriteLine($"Deleting all blobs in container: {containerName}. Connection String: {blobConnectionString}");
         var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
 
         await foreach (var blobItem in containerClient.GetBlobsAsync())
