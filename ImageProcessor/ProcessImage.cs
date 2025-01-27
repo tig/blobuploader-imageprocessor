@@ -330,14 +330,14 @@ public class ProcessImage
         if (image.Frames.Count > 1)
         {
             // Handle animated GIF
-            var originalGif = imageService.ResizeAnimatedGif(image, originalWidth, originalHeight);
-            originalBlob = await imageService.UploadToBlobAsync(containerClient, originalGif, originalBlobName);
-
             var sizedGif = imageService.ResizeAnimatedGif(image, sizedWidth, sizedHeight);
             sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedGif, sizedBlobName);
 
             var thumbnailGif = imageService.ResizeAnimatedGif(image, thumbnailWidth, thumbnailHeight);
             thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailGif, thumbnailBlobName);
+
+            var originalGif = imageService.ResizeAnimatedGif(image, originalWidth, originalHeight);
+            originalBlob = await imageService.UploadToBlobAsync(containerClient, originalGif, originalBlobName);
         } 
         else
         {
