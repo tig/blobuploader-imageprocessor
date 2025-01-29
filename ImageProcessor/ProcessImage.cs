@@ -259,9 +259,9 @@ public class ProcessImage
                 stackTrace = ex.StackTrace
             };
 
-            _logger.LogError(ex, "PI: Error processing image: {@errorDetails}", errorDetails);
+            _logger.LogError(ex, "PI: BadRequest - {@errorDetails}", errorDetails);
 
-            var errResponse = req.CreateResponse(System.Net.HttpStatusCode.InternalServerError);
+            var errResponse = req.CreateResponse(System.Net.HttpStatusCode.BadRequest);
             errResponse.Headers.Add("Content-Type", "application/json");
             await errResponse.WriteStringAsync(JsonSerializer.Serialize(errorDetails));
 
@@ -275,7 +275,7 @@ public class ProcessImage
 
     private async Task<HttpResponseData> ProcessImageAsync(HttpRequestData req, bool deDupe, bool useHashForFileName, byte[] fileBytes, string fileName, string extension, string subDirectory, string blobContainer, string blobConnectionString, int originalWidth, int originalHeight, int sizedWidth, int sizedHeight, int thumbnailWidth, int thumbnailHeight)
     {
-        StartPerfLog("ProcessImageAsync");
+        StartPerfLog($"ProcessImageAsync - {subDirectory}{fileName}.{extension}");
         var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
 
         using var imageStream = new MemoryStream(fileBytes);
@@ -319,6 +319,7 @@ public class ProcessImage
                 response.Headers.Add("Content-Type", "application/json");
                 await response.WriteStringAsync(JsonSerializer.Serialize(existingResponseBody));
 
+                StopPerfLog($"ProcessImageAsync - {subDirectory}{fileName}.{extension}");
                 return response;
             }
         }
@@ -327,87 +328,64 @@ public class ProcessImage
         var sizedBlob = string.Empty;
         var thumbnailBlob = string.Empty;
 
-        if (image.Frames.Count > 1)
+        try
         {
-            try
-            {
-                // Handle animated GIF
-                var sizedGif = imageService.ResizeAnimatedGif(image, sizedWidth, sizedHeight);
-                sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedGif, sizedBlobName);
+            // Handle animated GIF - start with thumbnail as it's the smallest
+            var thumbnailGif = imageService.ResizeAnimatedGif(image, thumbnailWidth, thumbnailHeight);
+            thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailGif, thumbnailBlobName);
 
-                var thumbnailGif = imageService.ResizeAnimatedGif(image, thumbnailWidth, thumbnailHeight);
-                thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailGif, thumbnailBlobName);
+            var sizedGif = imageService.ResizeAnimatedGif(image, sizedWidth, sizedHeight);
+            sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedGif, sizedBlobName);
 
-                var originalGif = imageService.ResizeAnimatedGif(image, originalWidth, originalHeight);
-                originalBlob = await imageService.UploadToBlobAsync(containerClient, originalGif, originalBlobName);
-            }
-            catch (Exception ex)
-            {
-                var errorDetails = new
-                {
-                    message = "Error processing animated GIF.",
-                    exception = ex.Message,
-                    stackTrace = ex.StackTrace
-                };
-
-                _logger.LogError(ex, "PI: Error processing animated GIF: {@errorDetails}", errorDetails);
-
-                var errResponse = req.CreateResponse(System.Net.HttpStatusCode.InternalServerError);
-                errResponse.Headers.Add("Content-Type", "application/json");
-                await errResponse.WriteStringAsync(JsonSerializer.Serialize(errorDetails));
-
-                return errResponse;
-            }
+            var originalGif = imageService.ResizeAnimatedGif(image, originalWidth, originalHeight);
+            originalBlob = await imageService.UploadToBlobAsync(containerClient, originalGif, originalBlobName);
         }
-        else
+        catch (Exception ex)
         {
-            try
+            var errorDetails = new
             {
-                // Process images
-                StartPerfLog("originalImage = imageService.ResizeImage");
-                var originalImage = imageService.ResizeImage(image, originalWidth, originalHeight);
-                StopPerfLog("originalImage = imageService.ResizeImage");
+                message = $"Error processing {extension} image.",
+                exception = ex.Message,
+                stackTrace = ex.StackTrace
+            };
 
-                originalBlob = await imageService.UploadToBlobAsync(containerClient, originalImage, originalBlobName);
+            _logger.LogError(ex, "PI: Error processing: {@errorDetails}", errorDetails);
 
-                StartPerfLog("sizedImage = imageService.ResizeImage");
-                var sizedImage = imageService.ResizeImage(image, sizedWidth, sizedHeight);
-                StopPerfLog("sizedImage = imageService.ResizeImage");
-
-                sizedBlob = await imageService.UploadToBlobAsync(containerClient, sizedImage, sizedBlobName);
-
-                var thumbnailImage = imageService.ResizeImage(image, thumbnailWidth, thumbnailHeight);
-                thumbnailBlob = await imageService.UploadToBlobAsync(containerClient, thumbnailImage, thumbnailBlobName);
-            }
-            catch (Exception ex)
+            // if any of the files uploaded, delete them
+            if (!string.IsNullOrEmpty(originalBlob))
             {
-                var errorDetails = new
-                {
-                    message = "Error processing image.",
-                    exception = ex.Message,
-                    stackTrace = ex.StackTrace
-                };
-
-                _logger.LogError(ex, "PI: Error processing image: {@errorDetails}", errorDetails);
-
-                var errResponse = req.CreateResponse(System.Net.HttpStatusCode.InternalServerError);
-                errResponse.Headers.Add("Content-Type", "application/json");
-                await errResponse.WriteStringAsync(JsonSerializer.Serialize(errorDetails));
-
-                return errResponse;
+                _logger.LogInformation("PI: Deleting originalBlob: {originalBlob}", originalBlob);
+                await containerClient.DeleteBlobIfExistsAsync(originalBlobName);
             }
 
+            if (!string.IsNullOrEmpty(sizedBlob))
+            {
+                _logger.LogInformation("PI: Deleting sizedBlob: {sizedBlob}", sizedBlob);
+                await containerClient.DeleteBlobIfExistsAsync(sizedBlobName);
+            }
+
+            if (!string.IsNullOrEmpty(thumbnailBlob))
+            {
+                _logger.LogInformation("PI: Deleting thumbnailBlob: {thumbnailBlob}", thumbnailBlob);
+                await containerClient.DeleteBlobIfExistsAsync(thumbnailBlobName);
+            }
+            var errResponse = req.CreateResponse(System.Net.HttpStatusCode.InternalServerError);
+            errResponse.Headers.Add("Content-Type", "application/json");
+            await errResponse.WriteStringAsync(JsonSerializer.Serialize(errorDetails));
+
+            StopPerfLog($"ProcessImageAsync - {subDirectory}{fileName}.{extension}");
+            return errResponse;
         }
 
-        _logger.LogInformation("PI: Images processed and uploaded successfully.");
+        _logger.LogInformation("PI: {image}.{extension} processed and uploaded successfully.", fileName, extension);
 
         var responseBody = new
         {
             original = originalBlob,
             sized = sizedBlob,
             thumbnail = thumbnailBlob,
-            message = "Image processed OK.",
-            processingTime = StopPerfLog("ProcessImageAsync"),
+            message = $"{extension} image processed OK.",
+            processingTime = StopPerfLog($"ProcessImageAsync - {subDirectory}{fileName}.{extension}")
         };
 
         response.Headers.Add("Content-Type", "application/json");

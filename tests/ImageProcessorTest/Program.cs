@@ -47,7 +47,7 @@ class Program
             return;
         }
 
-        string[] testFiles = { "tempest.gif" };
+        string[] testFiles = { "heic_test.heic" };
 
         using var client = new HttpClient();
         if (!string.IsNullOrEmpty(apiKey))
@@ -146,7 +146,7 @@ class Program
         //     Console.WriteLine($"Content: {content.Headers.ContentDisposition}");
         // }
 
-        Console.WriteLine($"Sending request to {functionUrl}...");
+        Console.WriteLine($"Sending {fileName}.{extension} to {functionUrl}...");
         var response = await client.PostAsync(functionUrl, multipartContent);
 
         Console.WriteLine($"Response status code: {response.StatusCode}");
